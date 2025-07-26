@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeathChat - API Key Required</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        h1 {
+            background: linear-gradient(135deg, #60a5fa, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .button {
+            display: inline-block;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            text-decoration: none;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        .button:hover {
+            transform: scale(1.05);
+        }
+        .warning {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 DeathChat</h1>
+        <p>Welcome to DeathChat - An AI-powered chat application!</p>
+        
+        <div class="warning">
+            <h3>⚠️ API Key Required</h3>
+            <p>This application requires an OpenRouter API key to function. For security reasons, no API key is included in this public deployment.</p>
+        </div>
+
+        <h3>🚀 Get Started:</h3>
+        <p>Choose one of the options below:</p>
+
+        <a href="https://github.com/SDeath-Scythe/DeathChat" class="button">
+            📦 View Source Code
+        </a>
+        
+        <a href="https://openrouter.ai/" class="button">
+            🔑 Get API Key
+        </a>
+
+        <div style="margin-top: 30px;">
+            <h4>For Local Development:</h4>
+            <pre style="text-align: left; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; overflow-x: auto;">
+git clone https://github.com/SDeath-Scythe/DeathChat.git
+cd DeathChat
+npm install
+cp .env.example .env
+# Add your API key to .env
+npm run dev</pre>
+        </div>
+
+        <p style="margin-top: 30px; opacity: 0.8;">
+            Created by <a href="https://sdeath-scythe.github.io/3d-portfolio/" style="color: #60a5fa;">SDeath-Scythe</a>
+        </p>
+    </div>
+
+    <script>
+        // Redirect to the actual app if API key is somehow available
+        if (localStorage.getItem('hasApiKey') === 'true') {
+            window.location.href = './index.html';
+        }
+    </script>
+</body>
+</html>
