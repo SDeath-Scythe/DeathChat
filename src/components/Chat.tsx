@@ -143,8 +143,6 @@ const Chat: React.FC = () => {
       timestamp: new Date()
     };
 
-
-
     // Always add user message and bot message only once per send
     let newConversations: Conversation[] = [];
     setConversations(prev => {
@@ -170,7 +168,6 @@ const Chat: React.FC = () => {
       return newConversations;
     });
 
-
     // Update title if this is the first user message
     const currentConv = newConversations.find(conv => conv.id === currentConversationId);
     if (currentConv && currentConv.messages.length === 1) {
@@ -191,6 +188,8 @@ const Chat: React.FC = () => {
         if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1].isBot && !updatedMessages[updatedMessages.length - 1].text) {
           updatedMessages = updatedMessages.slice(0, -1);
         }
+        // Filter out any assistant messages that are error responses
+        updatedMessages = updatedMessages.filter(msg => !(msg.isBot && msg.text.startsWith('Sorry, I encountered an error:')));
         // Only send the last 20 messages to avoid context overflow
         const lastMessages = updatedMessages.slice(-20);
         chatMessages = [
@@ -224,17 +223,7 @@ const Chat: React.FC = () => {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'An error occurred';
         setError(`${errorMessage}\n\n[Debug] chatMessages sent to backend:\n${JSON.stringify(chatMessages, null, 2)}`);
-        setConversations(prev => prev.map(conv =>
-          conv.id === currentConversationId
-            ? {
-                ...conv,
-                messages: conv.messages.map(m =>
-                  m.id === botMessageId ? { ...m, text: `Sorry, I encountered an error: ${errorMessage}` } : m
-                ),
-                updatedAt: new Date()
-              }
-            : conv
-        ));
+        // Do NOT add error message as an assistant message in chat history
       } finally {
         setIsTyping(false);
       }
