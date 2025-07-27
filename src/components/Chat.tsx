@@ -143,18 +143,24 @@ const Chat: React.FC = () => {
       timestamp: new Date()
     };
 
-    // Only add user message if it's not already the last message
+
+    // Always add user message and bot message only once per send
     setConversations(prev => prev.map(conv => {
       if (conv.id !== currentConversationId) return conv;
-      const lastMsg = conv.messages[conv.messages.length - 1];
-      let newMessages = conv.messages;
-      if (!lastMsg || lastMsg.isBot) {
-        newMessages = [...conv.messages, userMessage];
+      // Remove any trailing empty bot message (from previous error)
+      let msgs = conv.messages;
+      if (msgs.length > 0 && msgs[msgs.length - 1].isBot && !msgs[msgs.length - 1].text) {
+        msgs = msgs.slice(0, -1);
       }
-      newMessages = [...newMessages, botMessage];
+      // Only add user message if last message is not the same user message
+      if (msgs.length === 0 || msgs[msgs.length - 1].isBot) {
+        msgs = [...msgs, userMessage];
+      }
+      // Always add a new bot message placeholder
+      msgs = [...msgs, botMessage];
       return {
         ...conv,
-        messages: newMessages,
+        messages: msgs,
         updatedAt: new Date()
       };
     }));
@@ -169,12 +175,19 @@ const Chat: React.FC = () => {
     setIsTyping(true);
     setError(null);
 
+
     let chatMessages: ChatMessage[] = [];
     try {
-      // Build up-to-date message history including the just-sent user message (but avoid duplicates)
-      let updatedMessages = messages;
-      if (messages.length === 0 || messages[messages.length - 1].isBot) {
-        updatedMessages = [...messages, userMessage];
+      // Always build chat history from the current conversation, ensuring only one user message is added
+      const conv = conversations.find(c => c.id === currentConversationId);
+      let updatedMessages = conv ? conv.messages : [];
+      // Remove any trailing empty bot message
+      if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1].isBot && !updatedMessages[updatedMessages.length - 1].text) {
+        updatedMessages = updatedMessages.slice(0, -1);
+      }
+      // Add the just-sent user message if needed
+      if (updatedMessages.length === 0 || updatedMessages[updatedMessages.length - 1].isBot) {
+        updatedMessages = [...updatedMessages, userMessage];
       }
       chatMessages = [
         { role: 'system', content: 'You are a helpful and friendly AI assistant.' },
