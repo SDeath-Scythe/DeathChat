@@ -152,8 +152,6 @@ const Chat: React.FC = () => {
 
     // Prepare streaming bot message
     const botMessageId = Date.now() + 1;
-    let streamedReasoning = '';
-    let streamedContent = '';
     const botMessage: Message = {
       id: botMessageId,
       text: '',
@@ -171,7 +169,7 @@ const Chat: React.FC = () => {
     ));
 
     try {
-      // Convert messages to API format
+      // Convert messages to API format for qwen/qwen3-coder:free
       const chatMessages: ChatMessage[] = [
         { role: 'system', content: 'You are a helpful and friendly AI assistant.' },
         ...messages.map(msg => ({
@@ -182,24 +180,17 @@ const Chat: React.FC = () => {
       ];
 
       let hadContent = false;
+      let streamedContent = '';
+      let streamedContent = '';
       for await (const chunk of sendMessageToAIStream(chatMessages)) {
         hadContent = true;
-        // Parse chunk for reasoning/content markers
-        if (chunk.startsWith('reasoning:')) {
-          streamedReasoning += chunk.replace(/^reasoning:/, '');
-        } else if (chunk.startsWith('content:')) {
-          streamedContent += chunk.replace(/^content:/, '');
-        } else {
-          streamedContent += chunk;
-        }
-        // Compose display text with markers for rendering
-        const displayText = (streamedReasoning ? `[[THINKING]]${streamedReasoning}[[/THINKING]]` : '') + streamedContent;
+        streamedContent += chunk;
         setConversations(prev => prev.map(conv =>
           conv.id === currentConversationId
             ? {
                 ...conv,
                 messages: conv.messages.map(m =>
-                  m.id === botMessageId ? { ...m, text: displayText } : m
+                  m.id === botMessageId ? { ...m, text: streamedContent } : m
                 ),
                 updatedAt: new Date()
               }
@@ -253,180 +244,10 @@ const Chat: React.FC = () => {
     }
   }
 
-  const renderFormattedText = (text: string) => {
-    // Check for thinking marker
-    let thinking = '';
-    let reply = text;
-    const thinkingMatch = text.match(/\[\[THINKING\]\]([\s\S]*?)\[\[\/THINKING\]\]/);
-    if (thinkingMatch) {
-      thinking = thinkingMatch[1];
-      reply = text.replace(thinkingMatch[0], '');
-    }
-
-    // Split text into parts: code blocks, inline code, and regular text
-    let parts = reply.split(/```([\s\S]*?)```|`([^`]+)`/g);
-
-    // If no code block detected, try to auto-detect code-like blocks and wrap them
-    if (parts.length === 1) {
-      // Heuristic: look for lines that look like code (e.g., start with 'def ', 'class ', 'import ', etc.)
-      const codeLikeRegex = /^(\s*)(def |class |import |from |for |while |if |try:|except |print\(|console\.log\(|function |let |const |var |#include |public |private |protected |static |void |int |float |double |String |System\.|<\?php|<html|<!DOCTYPE|\{)/m;
-      const lines = reply.split('\n');
-      let inCode = false;
-      let newParts: string[] = [];
-      let codeBuffer: string[] = [];
-      lines.forEach((line, idx) => {
-        if (codeLikeRegex.test(line) || (inCode && line.trim() !== '')) {
-          inCode = true;
-          codeBuffer.push(line);
-        } else {
-          if (inCode) {
-            // End of code block
-            newParts.push('```auto');
-            newParts.push(codeBuffer.join('\n'));
-            newParts.push('```');
-            codeBuffer = [];
-            inCode = false;
-          }
-          newParts.push(line);
-        }
-      });
-      if (codeBuffer.length > 0) {
-        newParts.push('```auto');
-        newParts.push(codeBuffer.join('\n'));
-        newParts.push('```');
-      }
-      // Re-split with code block regex
-      parts = newParts.join('\n').split(/```([\s\S]*?)```|`([^`]+)`/g);
-    }
-
+  // Render the AI output exactly as generated, preserving all formatting
+  const renderRawText = (text: string) => {
     return (
-      <>
-        {/* Thinking (reasoning) part, if present and enabled */}
-        {thinking && showThinking && (
-          <div className="mb-3 px-4 py-3 rounded-xl border-2 border-blue-400/60 bg-blue-950/80 shadow-lg flex items-center gap-3 animate-pulse relative overflow-hidden">
-            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-400/80 text-white text-lg font-bold shadow-md border-2 border-blue-300/80 mr-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z"/></svg>
-            </span>
-            <div className="flex-1 text-blue-100 text-xs sm:text-sm font-mono">
-              <span className="font-bold text-blue-300 mr-2 tracking-wide uppercase">AI is thinking...</span>
-              <span className="opacity-90">{thinking}</span>
-            </div>
-            <div className="absolute left-0 top-0 w-full h-full pointer-events-none animate-gradient-x bg-gradient-to-r from-blue-500/10 via-blue-400/10 to-blue-500/10" style={{zIndex:0}} />
-          </div>
-        )}
-        {parts.map((part, index) => {
-          // Code blocks (multiline)
-          if (index % 3 === 1 && part) {
-            const lines = part.trim().split('\n');
-            const language = lines[0].trim();
-            const code = lines.slice(language && !language.includes(' ') ? 1 : 0).join('\n');
-            return (
-              <div key={index} className="my-4 bg-gray-800/50 border border-gray-600/50 rounded-lg overflow-hidden group">
-                <div className="bg-gray-700/70 px-4 py-2 flex items-center justify-between border-b border-gray-600/50">
-                  <span className="text-xs text-gray-300 font-medium">
-                    {language && !language.includes(' ') ? language : 'code'}
-                  </span>
-                  <button
-                    onClick={() => copyToClipboard(code)}
-                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white transition-all duration-200 p-1 rounded hover:bg-gray-600/50"
-                    title="Copy code"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="relative">
-                  <pre className="p-4 text-sm text-gray-200 overflow-x-auto leading-relaxed">
-                    <code className="language-{language}">{code}</code>
-                  </pre>
-                </div>
-              </div>
-            );
-          }
-          // Inline code
-          if (index % 3 === 2 && part) {
-            return (
-              <code key={index} className="bg-gray-700/70 text-orange-300 px-2 py-1 rounded text-sm font-mono border border-gray-600/30">
-                {part}
-              </code>
-            );
-          }
-          // Regular text with enhanced formatting
-          if (part) {
-            const formattedText = part
-              .split('\n')
-              .map((line, lineIndex) => {
-                // Section headers with diamond bullet
-                if (line.trim().match(/^[♦◆▪️]\s+/)) {
-                  return (
-                    <div key={lineIndex} className="flex items-start my-3">
-                      <span className="text-blue-400 mr-3 mt-1 text-sm">♦</span>
-                      <div className="font-semibold text-blue-200">{line.trim().substring(2)}</div>
-                    </div>
-                  );
-                }
-                // Bullet points with better styling
-                if (line.trim().startsWith('• ') || line.trim().startsWith('- ')) {
-                  return (
-                    <div key={lineIndex} className="flex items-start my-2 ml-4">
-                      <span className="text-blue-400 mr-3 mt-1.5 text-xs">●</span>
-                      <div className="text-gray-200 leading-relaxed">{line.trim().substring(2)}</div>
-                    </div>
-                  );
-                }
-                // Numbered lists with enhanced styling
-                const numberedMatch = line.trim().match(/^(\d+)\.\s+(.*)/);
-                if (numberedMatch) {
-                  return (
-                    <div key={lineIndex} className="flex items-start my-2 ml-4">
-                      <span className="text-blue-400 mr-3 mt-0.5 font-semibold text-sm min-w-[20px]">{numberedMatch[1]}.</span>
-                      <div className="text-gray-200 leading-relaxed">{numberedMatch[2]}</div>
-                    </div>
-                  );
-                }
-                // Main headers
-                if (line.trim().startsWith('# ')) {
-                  return (
-                    <h3 key={lineIndex} className="text-xl font-bold mt-6 mb-3 text-blue-300 border-b border-gray-600/50 pb-2">
-                      {line.trim().substring(2)}
-                    </h3>
-                  );
-                }
-                // Sub headers
-                if (line.trim().startsWith('## ')) {
-                  return (
-                    <h4 key={lineIndex} className="text-lg font-semibold mt-4 mb-2 text-blue-300">
-                      {line.trim().substring(3)}
-                    </h4>
-                  );
-                }
-                // Sub-sub headers
-                if (line.trim().startsWith('### ')) {
-                  return (
-                    <h5 key={lineIndex} className="text-base font-medium mt-3 mb-2 text-blue-300">
-                      {line.trim().substring(4)}
-                    </h5>
-                  );
-                }
-                // Bold and italic text with better regex
-                let processedLine = line
-                  .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>')
-                  .replace(/\*(.*?)\*/g, '<em class="italic text-gray-300">$1</em>');
-                // Regular paragraphs
-                if (line.trim()) {
-                  return (
-                    <div key={lineIndex} className="my-1 text-gray-200 leading-relaxed" dangerouslySetInnerHTML={{ __html: processedLine }} />
-                  );
-                }
-                // Empty lines for spacing
-                return <div key={lineIndex} className="h-2" />;
-              });
-            return <div key={index} className="space-y-1">{formattedText}</div>;
-          }
-          return null;
-        })}
-      </>
+      <pre className="whitespace-pre-wrap break-words text-gray-100 text-xs sm:text-sm font-mono">{text}</pre>
     );
   };
 
@@ -601,7 +422,7 @@ const Chat: React.FC = () => {
                 </button>
               )}
               <div className="text-xs sm:text-sm whitespace-pre-wrap font-sans break-words overflow-x-auto pr-6 sm:pr-8 md:pr-10 leading-relaxed">
-                {renderFormattedText(message.text)}
+                {renderRawText(message.text)}
               </div>
               <p className={`text-xs mt-2 sm:mt-3 md:mt-4 font-medium ${
                 message.isBot ? 'text-gray-400' : 'text-blue-100'
