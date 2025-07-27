@@ -1,5 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { sendMessageToAIStream, ChatMessage } from '../services/aiService'
+import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import rehypePrism from 'rehype-prism-plus'
+import 'prismjs/themes/prism-tomorrow.css'
 import './Chat.module.css'
 
 interface Message {
@@ -139,16 +143,21 @@ const Chat: React.FC = () => {
       timestamp: new Date()
     };
 
-    // Add both user and bot message at once
-    setConversations(prev => prev.map(conv =>
-      conv.id === currentConversationId
-        ? {
-            ...conv,
-            messages: [...conv.messages, userMessage, botMessage],
-            updatedAt: new Date()
-          }
-        : conv
-    ));
+    // Only add user message if it's not already the last message
+    setConversations(prev => prev.map(conv => {
+      if (conv.id !== currentConversationId) return conv;
+      const lastMsg = conv.messages[conv.messages.length - 1];
+      let newMessages = conv.messages;
+      if (!lastMsg || lastMsg.isBot) {
+        newMessages = [...conv.messages, userMessage];
+      }
+      newMessages = [...newMessages, botMessage];
+      return {
+        ...conv,
+        messages: newMessages,
+        updatedAt: new Date()
+      };
+    }));
 
     // Update title if this is the first user message
     const currentConv = conversations.find(conv => conv.id === currentConversationId);
@@ -162,16 +171,11 @@ const Chat: React.FC = () => {
 
     let chatMessages: ChatMessage[] = [];
     try {
-      // Build up-to-date message history including the just-sent user message
-      const updatedMessages = [
-        ...messages,
-        {
-          id: userMessage.id,
-          text: userMessage.text,
-          isBot: false,
-          timestamp: userMessage.timestamp
-        }
-      ];
+      // Build up-to-date message history including the just-sent user message (but avoid duplicates)
+      let updatedMessages = messages;
+      if (messages.length === 0 || messages[messages.length - 1].isBot) {
+        updatedMessages = [...messages, userMessage];
+      }
       chatMessages = [
         { role: 'system', content: 'You are a helpful and friendly AI assistant.' },
         ...updatedMessages.map(msg => ({
@@ -244,12 +248,27 @@ const Chat: React.FC = () => {
     }
   }
 
-  // Render the AI output exactly as generated, preserving all formatting
-  const renderRawText = (text: string) => {
-    return (
-      <pre className="whitespace-pre-wrap break-words text-gray-100 text-xs sm:text-sm font-mono">{text}</pre>
-    );
-  };
+
+  // Render markdown with syntax highlighting for assistant messages
+  const renderAssistantMessage = (text: string) => (
+    <ReactMarkdown
+      children={text}
+      rehypePlugins={[rehypeRaw, rehypePrism]}
+      components={{
+        pre: ({node, ...props}) => <pre className="!bg-gray-900 !rounded-lg !p-4 !overflow-x-auto !text-xs sm:!text-sm !font-mono !mb-2" {...props} />,
+        code: ({node, className, ...props}) => <code className={className + ' !font-mono'} {...props} />,
+        p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+        ul: ({node, ...props}) => <ul className="list-disc ml-6 mb-2" {...props} />,
+        ol: ({node, ...props}) => <ol className="list-decimal ml-6 mb-2" {...props} />,
+        li: ({node, ...props}) => <li className="mb-1" {...props} />,
+        a: ({node, ...props}) => <a className="text-blue-400 underline hover:text-blue-300" target="_blank" rel="noopener noreferrer" {...props} />,
+        blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-blue-400 pl-4 italic text-blue-200 mb-2" {...props} />,
+        strong: ({node, ...props}) => <strong className="font-semibold text-white" {...props} />,
+        em: ({node, ...props}) => <em className="italic text-blue-200" {...props} />,
+        hr: () => <hr className="my-4 border-gray-700" />,
+      }}
+    />
+  );
 
   return (
     <div className="flex w-full h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative">
@@ -401,36 +420,52 @@ const Chat: React.FC = () => {
       {/* Messages - Responsive */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 md:space-y-6 bg-gradient-to-b from-gray-900/50 to-gray-800/50 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
         {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.isBot ? 'justify-start' : 'justify-end'} group animate-fade-in`}
-          >
-            <div className={`max-w-[90%] sm:max-w-sm md:max-w-md lg:max-w-2xl xl:max-w-3xl px-3 sm:px-4 md:px-5 py-3 sm:py-4 rounded-xl sm:rounded-2xl relative transition-all duration-300 hover:scale-[1.01] ${
-              message.isBot
-                ? 'bg-gradient-to-br from-gray-700/95 via-gray-600/95 to-gray-700/95 text-gray-100 shadow-xl border border-gray-500/30 backdrop-blur-sm'
-                : 'bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 text-white shadow-xl ring-1 ring-white/20'
-            }`}>
-              {message.isBot && (
-                <button
-                  onClick={() => copyToClipboard(message.text)}
-                  className="absolute top-2 sm:top-3 right-2 sm:right-3 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white transition-all duration-300 p-1 sm:p-2 rounded-lg hover:bg-gray-600/50 hover:scale-110"
-                  title="Copy message"
-                >
-                  <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </button>
-              )}
-              <div className="text-xs sm:text-sm whitespace-pre-wrap font-sans break-words overflow-x-auto pr-6 sm:pr-8 md:pr-10 leading-relaxed">
-                {renderRawText(message.text)}
+          message.isBot ? (
+            <div key={message.id} className="flex justify-start group animate-fade-in">
+              <div className="flex items-start w-full max-w-3xl">
+                {/* Assistant avatar */}
+                <div className="flex-shrink-0 mr-3 mt-1">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg shadow-lg border-2 border-blue-400/60 select-none">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="10" strokeWidth="2" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 15s1.5 2 4 2 4-2 4-2" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 9h.01M15 9h.01" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="bg-gray-900/95 border border-gray-700/60 rounded-2xl px-5 py-4 shadow-xl mb-1">
+                    <div className="flex items-center mb-2">
+                      <span className="font-semibold text-blue-300 text-xs mr-2">Qwen3 Coder (AI)</span>
+                      <button
+                        onClick={() => copyToClipboard(message.text)}
+                        className="ml-auto text-gray-400 hover:text-blue-400 transition-colors duration-200 p-1 rounded hover:bg-gray-700/50"
+                        title="Copy message"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="prose prose-invert max-w-none text-sm sm:text-base">
+                      {renderAssistantMessage(message.text)}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 ml-2 mb-4">{message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
               </div>
-              <p className={`text-xs mt-2 sm:mt-3 md:mt-4 font-medium ${
-                message.isBot ? 'text-gray-400' : 'text-blue-100'
-              }`}>
-                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
             </div>
-          </div>
+          ) : (
+            <div key={message.id} className="flex justify-end group animate-fade-in">
+              <div className="flex items-start w-full max-w-3xl">
+                <div className="flex-1"></div>
+                <div className="bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 text-white rounded-2xl px-5 py-4 shadow-xl mb-1">
+                  <div className="text-sm sm:text-base whitespace-pre-wrap break-words font-sans">{message.text}</div>
+                </div>
+                <div className="ml-2 text-xs text-gray-400 mt-2">{message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+              </div>
+            </div>
+          )
         ))}
         
         {/* Typing indicator - Responsive */}
