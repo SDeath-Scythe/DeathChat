@@ -264,15 +264,54 @@ const Chat: React.FC = () => {
     }
 
     // Split text into parts: code blocks, inline code, and regular text
-    const parts = reply.split(/```([\s\S]*?)```|`([^`]+)`/g);
+    let parts = reply.split(/```([\s\S]*?)```|`([^`]+)`/g);
+
+    // If no code block detected, try to auto-detect code-like blocks and wrap them
+    if (parts.length === 1) {
+      // Heuristic: look for lines that look like code (e.g., start with 'def ', 'class ', 'import ', etc.)
+      const codeLikeRegex = /^(\s*)(def |class |import |from |for |while |if |try:|except |print\(|console\.log\(|function |let |const |var |#include |public |private |protected |static |void |int |float |double |String |System\.|<\?php|<html|<!DOCTYPE|\{)/m;
+      const lines = reply.split('\n');
+      let inCode = false;
+      let newParts: string[] = [];
+      let codeBuffer: string[] = [];
+      lines.forEach((line, idx) => {
+        if (codeLikeRegex.test(line) || (inCode && line.trim() !== '')) {
+          inCode = true;
+          codeBuffer.push(line);
+        } else {
+          if (inCode) {
+            // End of code block
+            newParts.push('```auto');
+            newParts.push(codeBuffer.join('\n'));
+            newParts.push('```');
+            codeBuffer = [];
+            inCode = false;
+          }
+          newParts.push(line);
+        }
+      });
+      if (codeBuffer.length > 0) {
+        newParts.push('```auto');
+        newParts.push(codeBuffer.join('\n'));
+        newParts.push('```');
+      }
+      // Re-split with code block regex
+      parts = newParts.join('\n').split(/```([\s\S]*?)```|`([^`]+)`/g);
+    }
 
     return (
       <>
         {/* Thinking (reasoning) part, if present and enabled */}
         {thinking && showThinking && (
-          <div className="mb-2 p-2 rounded bg-yellow-900/60 border border-yellow-400/30 text-yellow-200 text-xs sm:text-sm font-mono animate-pulse">
-            <span className="font-semibold text-yellow-300 mr-2">Thinking:</span>
-            {thinking}
+          <div className="mb-3 px-4 py-3 rounded-xl border-2 border-blue-400/60 bg-blue-950/80 shadow-lg flex items-center gap-3 animate-pulse relative overflow-hidden">
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-400/80 text-white text-lg font-bold shadow-md border-2 border-blue-300/80 mr-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z"/></svg>
+            </span>
+            <div className="flex-1 text-blue-100 text-xs sm:text-sm font-mono">
+              <span className="font-bold text-blue-300 mr-2 tracking-wide uppercase">AI is thinking...</span>
+              <span className="opacity-90">{thinking}</span>
+            </div>
+            <div className="absolute left-0 top-0 w-full h-full pointer-events-none animate-gradient-x bg-gradient-to-r from-blue-500/10 via-blue-400/10 to-blue-500/10" style={{zIndex:0}} />
           </div>
         )}
         {parts.map((part, index) => {
@@ -482,18 +521,28 @@ const Chat: React.FC = () => {
       <div className="flex-1 flex justify-center items-center p-2 sm:p-4 md:p-6">
         {/* Chat Box - Responsive */}
         <div className="bg-gradient-to-br from-gray-800/90 via-gray-700/90 to-gray-800/90 border border-gray-600/30 rounded-xl sm:rounded-2xl shadow-2xl backdrop-blur-xl w-full max-w-5xl h-[calc(100vh-1rem)] sm:h-[calc(100vh-2rem)] md:h-[580px] flex flex-col overflow-hidden ring-1 ring-white/5">
-          {/* Show Thinking Toggle */}
-          <div className="absolute top-2 left-2 z-50 flex items-center space-x-2 bg-gray-900/80 px-3 py-1 rounded-xl border border-gray-700/40 shadow-md">
-            <label htmlFor="show-thinking-toggle" className="text-xs text-yellow-200 font-semibold cursor-pointer select-none flex items-center">
-              <input
-                id="show-thinking-toggle"
-                type="checkbox"
-                checked={showThinking}
-                onChange={() => setShowThinking(v => !v)}
-                className="form-checkbox h-4 w-4 text-yellow-400 focus:ring-yellow-500 border-gray-400 mr-2"
-              />
-              Show Thinking
-            </label>
+          {/* Show Thinking Toggle - moved to header, modern switch style */}
+          <div className="absolute top-3 right-6 z-50 flex items-center space-x-2">
+            <div className="relative group">
+              <label htmlFor="show-thinking-toggle" className="flex items-center cursor-pointer select-none">
+                <span className="mr-2 text-xs font-semibold text-blue-200 hidden sm:inline">Show Thinking</span>
+                <span className="relative">
+                  <input
+                    id="show-thinking-toggle"
+                    type="checkbox"
+                    checked={showThinking}
+                    onChange={() => setShowThinking(v => !v)}
+                    className="sr-only"
+                  />
+                  <span className={`block w-10 h-6 rounded-full transition-colors duration-300 ${showThinking ? 'bg-blue-500/80' : 'bg-gray-600/60'}`}></span>
+                  <span className={`absolute left-0 top-0 w-6 h-6 bg-white border-2 border-blue-300 rounded-full shadow transition-transform duration-300 ${showThinking ? 'translate-x-4' : ''}`}></span>
+                </span>
+                <span className="ml-2 text-blue-400 group-hover:underline text-xs" title="Toggle to show or hide the AI's reasoning process before the reply">?</span>
+              </label>
+              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-blue-900/90 text-blue-100 text-xs rounded px-2 py-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                Show or hide the AI's reasoning process before the reply
+              </div>
+            </div>
           </div>
           {/* Header - Responsive */}
           <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white p-3 sm:p-4 md:p-5 flex items-center justify-between relative overflow-hidden">
