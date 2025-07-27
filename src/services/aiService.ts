@@ -1,4 +1,3 @@
-const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY
 const API_URL = '/api/chat'
 
 export interface ChatMessage {
