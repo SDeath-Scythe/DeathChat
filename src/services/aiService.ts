@@ -32,17 +32,7 @@ export async function* sendMessageToAIStream(messages: ChatMessage[]): AsyncGene
         if (line.startsWith('data: ')) {
           const data = line.slice(6);
           if (data === '[DONE]') return;
-          try {
-            // Try to parse as JSON, else treat as text
-            const json = JSON.parse(data);
-            if (json.error) throw new Error(json.error);
-            // OpenRouter streams OpenAI-style chunks
-            const content = json.choices?.[0]?.delta?.content;
-            if (content) yield content;
-          } catch {
-            // Not JSON, just yield as text
-            yield data;
-          }
+          yield data;
         }
       }
     }

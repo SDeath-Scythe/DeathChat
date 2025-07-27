@@ -49,14 +49,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let done = false;
+    let buffer = '';
     while (!done) {
       const { value, done: doneReading } = await reader.read();
       done = doneReading;
       if (value) {
-        const chunk = decoder.decode(value);
-        // Forward as SSE
-        res.write(`data: ${chunk}\n\n`);
-        res.flush && res.flush();
+        buffer += decoder.decode(value, { stream: true });
+        let lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') continue;
+            try {
+              const json = JSON.parse(data);
+              // Prefer content, fallback to reasoning (DeepSeek)
+              const content = json.choices?.[0]?.delta?.content;
+              const reasoning = json.choices?.[0]?.delta?.reasoning;
+              if (content) {
+                res.write(`data: ${content}\n\n`);
+                res.flush && res.flush();
+              }
+              if (reasoning) {
+                res.write(`data: ${reasoning}\n\n`);
+                res.flush && res.flush();
+              }
+            } catch {
+              // Not JSON, ignore
+            }
+          }
+        }
       }
     }
     res.write('data: [DONE]\n\n');
