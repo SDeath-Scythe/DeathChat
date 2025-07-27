@@ -161,14 +161,22 @@ const Chat: React.FC = () => {
     setError(null);
 
     try {
-      // Convert messages to API format for qwen/qwen3-coder:free
+      // Build up-to-date message history including the just-sent user message
+      const updatedMessages = [
+        ...messages,
+        {
+          id: userMessage.id,
+          text: userMessage.text,
+          isBot: false,
+          timestamp: userMessage.timestamp
+        }
+      ];
       const chatMessages: ChatMessage[] = [
         { role: 'system', content: 'You are a helpful and friendly AI assistant.' },
-        ...messages.map(msg => ({
+        ...updatedMessages.map(msg => ({
           role: msg.isBot ? 'assistant' as const : 'user' as const,
           content: msg.text
-        })),
-        { role: 'user', content: inputValue }
+        }))
       ];
 
       let hadContent = false;
