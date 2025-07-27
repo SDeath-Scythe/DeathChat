@@ -27,13 +27,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const modelToUse = typeof model === 'string' && model.length > 0 ? model : 'qwen/qwen3-coder:free';
 
+    // Revert to minimal required headers and body for OpenRouter
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': req.headers['origin'] || '', // Optional, for OpenRouter ranking
-        'X-Title': 'DeathChat', // Optional, for OpenRouter ranking
       },
       body: JSON.stringify({
         model: modelToUse,
