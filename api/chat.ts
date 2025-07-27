@@ -41,8 +41,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     });
 
+    if (!response.ok) {
+      // Try to parse error message from OpenRouter
+      let errorText = await response.text();
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorText = errorJson.error || errorText;
+      } catch {}
+      res.write(`data: {\"error\":\"OpenRouter error: ${errorText.replace(/"/g, '')}\"}\n\n`);
+      res.end();
+      return;
+    }
+
     if (!response.body) {
-      return res.status(500).json({ error: 'No response body from OpenRouter.' });
+      res.write('data: {"error":"No response body from OpenRouter."}\n\n');
+      res.end();
+      return;
     }
 
     const reader = response.body.getReader();

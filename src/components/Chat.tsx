@@ -120,6 +120,7 @@ const Chat: React.FC = () => {
   }, [])
 
   const handleSendMessage = async () => {
+
     if (!inputValue.trim() || !currentConversationId) return;
 
     const userMessage: Message = {
@@ -129,12 +130,21 @@ const Chat: React.FC = () => {
       timestamp: new Date()
     };
 
-    // Add user message
+    // Prepare streaming bot message
+    const botMessageId = Date.now() + 1;
+    const botMessage: Message = {
+      id: botMessageId,
+      text: '',
+      isBot: true,
+      timestamp: new Date()
+    };
+
+    // Add both user and bot message at once
     setConversations(prev => prev.map(conv =>
       conv.id === currentConversationId
         ? {
             ...conv,
-            messages: [...conv.messages, userMessage],
+            messages: [...conv.messages, userMessage, botMessage],
             updatedAt: new Date()
           }
         : conv
@@ -149,24 +159,6 @@ const Chat: React.FC = () => {
     setInputValue('');
     setIsTyping(true);
     setError(null);
-
-    // Prepare streaming bot message
-    const botMessageId = Date.now() + 1;
-    const botMessage: Message = {
-      id: botMessageId,
-      text: '',
-      isBot: true,
-      timestamp: new Date()
-    };
-    setConversations(prev => prev.map(conv =>
-      conv.id === currentConversationId
-        ? {
-            ...conv,
-            messages: [...conv.messages, userMessage, botMessage],
-            updatedAt: new Date()
-          }
-        : conv
-    ));
 
     try {
       // Convert messages to API format for qwen/qwen3-coder:free
