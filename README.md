@@ -11,7 +11,7 @@ A modern AI-powered chat application built with React, TypeScript, and Tailwind 
 - 💾 **Persistent Storage** - Conversations saved locally in browser
 - 🎯 **Copy & Format** - Copy messages with enhanced text formatting
 - ⚡ **Real-time Typing** - Live typing indicators and smooth animations
-- 🚀 **GitHub Pages Ready** - Automatic deployment workflow
+- 🚀 **Vercel Ready** - Deploy instantly to https://vercel.com/
 
 ## 🛠️ Tech Stack
 
@@ -38,6 +38,26 @@ git clone https://github.com/SDeath-Scythe/DeathChat.git
 cd DeathChat
 ```
 
+### Deploying to Vercel
+
+1. Push your repository to GitHub (or GitLab/Bitbucket).
+2. Go to [Vercel](https://vercel.com/) and import your project.
+3. In Vercel dashboard, set the environment variable:
+   - `VITE_OPENROUTER_API_KEY` = your OpenRouter API key
+4. No need to change the build output directory (Vercel auto-detects Vite's `dist` folder).
+5. Click **Deploy**. Your app will be live on your Vercel domain!
+
+#### Notes
+- The `base` config has been removed from `vite.config.ts` for Vercel compatibility.
+- If you need custom rewrites or headers, edit `vercel.json`.
+- For API keys, always use Vercel's Environment Variables (never commit secrets).
+
+---
+
+For local development, use:
+```bash
+npm run dev
+```
 2. Install dependencies:
 ```bash
 npm install
