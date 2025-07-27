@@ -160,6 +160,7 @@ const Chat: React.FC = () => {
     setIsTyping(true);
     setError(null);
 
+    let chatMessages: ChatMessage[] = [];
     try {
       // Build up-to-date message history including the just-sent user message
       const updatedMessages = [
@@ -171,7 +172,7 @@ const Chat: React.FC = () => {
           timestamp: userMessage.timestamp
         }
       ];
-      const chatMessages: ChatMessage[] = [
+      chatMessages = [
         { role: 'system', content: 'You are a helpful and friendly AI assistant.' },
         ...updatedMessages.map(msg => ({
           role: msg.isBot ? 'assistant' as const : 'user' as const,
@@ -201,7 +202,7 @@ const Chat: React.FC = () => {
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-      setError(errorMessage);
+      setError(`${errorMessage}\n\n[Debug] chatMessages sent to backend:\n${JSON.stringify(chatMessages, null, 2)}`);
       setConversations(prev => prev.map(conv =>
         conv.id === currentConversationId
           ? {
