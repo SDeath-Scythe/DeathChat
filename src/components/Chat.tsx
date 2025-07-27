@@ -380,7 +380,7 @@ const Chat: React.FC = () => {
               <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-400 rounded-full mr-2 sm:mr-4 animate-pulse shadow-lg shadow-green-400/50"></div>
               <div>
                 <h3 className="font-bold text-sm sm:text-lg md:text-xl bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">AI Assistant</h3>
-                <p className="text-xs sm:text-sm opacity-90 text-gray-100">Online • Powered by DeepSeek</p>
+                <p className="text-xs sm:text-sm opacity-90 text-gray-100">Online • Powered by Qwen Coder</p>
               </div>
             </div>
           </div>
