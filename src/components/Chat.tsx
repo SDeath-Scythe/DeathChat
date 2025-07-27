@@ -144,29 +144,35 @@ const Chat: React.FC = () => {
     };
 
 
+
     // Always add user message and bot message only once per send
-    setConversations(prev => prev.map(conv => {
-      if (conv.id !== currentConversationId) return conv;
-      // Remove any trailing empty bot message (from previous error)
-      let msgs = conv.messages;
-      if (msgs.length > 0 && msgs[msgs.length - 1].isBot && !msgs[msgs.length - 1].text) {
-        msgs = msgs.slice(0, -1);
-      }
-      // Only add user message if last message is not the same user message
-      if (msgs.length === 0 || msgs[msgs.length - 1].isBot) {
-        msgs = [...msgs, userMessage];
-      }
-      // Always add a new bot message placeholder
-      msgs = [...msgs, botMessage];
-      return {
-        ...conv,
-        messages: msgs,
-        updatedAt: new Date()
-      };
-    }));
+    let newConversations: Conversation[] = [];
+    setConversations(prev => {
+      newConversations = prev.map(conv => {
+        if (conv.id !== currentConversationId) return conv;
+        // Remove any trailing empty bot message (from previous error)
+        let msgs = conv.messages;
+        if (msgs.length > 0 && msgs[msgs.length - 1].isBot && !msgs[msgs.length - 1].text) {
+          msgs = msgs.slice(0, -1);
+        }
+        // Only add user message if last message is not the same user message
+        if (msgs.length === 0 || msgs[msgs.length - 1].isBot) {
+          msgs = [...msgs, userMessage];
+        }
+        // Always add a new bot message placeholder
+        msgs = [...msgs, botMessage];
+        return {
+          ...conv,
+          messages: msgs,
+          updatedAt: new Date()
+        };
+      });
+      return newConversations;
+    });
+
 
     // Update title if this is the first user message
-    const currentConv = conversations.find(conv => conv.id === currentConversationId);
+    const currentConv = newConversations.find(conv => conv.id === currentConversationId);
     if (currentConv && currentConv.messages.length === 1) {
       updateConversationTitle(currentConversationId, inputValue);
     }
@@ -175,65 +181,64 @@ const Chat: React.FC = () => {
     setIsTyping(true);
     setError(null);
 
+    // Wait for state update to propagate, then build chatMessages from latest state
+    setTimeout(async () => {
+      let chatMessages: ChatMessage[] = [];
+      try {
+        const conv = newConversations.find(c => c.id === currentConversationId);
+        let updatedMessages = conv ? conv.messages : [];
+        // Remove any trailing empty bot message
+        if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1].isBot && !updatedMessages[updatedMessages.length - 1].text) {
+          updatedMessages = updatedMessages.slice(0, -1);
+        }
+        // Only send the last 20 messages to avoid context overflow
+        const lastMessages = updatedMessages.slice(-20);
+        chatMessages = [
+          { role: 'system', content: 'You are a helpful and friendly AI assistant.' },
+          ...lastMessages.map(msg => ({
+            role: msg.isBot ? 'assistant' as const : 'user' as const,
+            content: msg.text
+          }))
+        ];
 
-    let chatMessages: ChatMessage[] = [];
-    try {
-      // Always build chat history from the current conversation, ensuring only one user message is added
-      const conv = conversations.find(c => c.id === currentConversationId);
-      let updatedMessages = conv ? conv.messages : [];
-      // Remove any trailing empty bot message
-      if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1].isBot && !updatedMessages[updatedMessages.length - 1].text) {
-        updatedMessages = updatedMessages.slice(0, -1);
-      }
-      // Add the just-sent user message if needed
-      if (updatedMessages.length === 0 || updatedMessages[updatedMessages.length - 1].isBot) {
-        updatedMessages = [...updatedMessages, userMessage];
-      }
-      chatMessages = [
-        { role: 'system', content: 'You are a helpful and friendly AI assistant.' },
-        ...updatedMessages.map(msg => ({
-          role: msg.isBot ? 'assistant' as const : 'user' as const,
-          content: msg.text
-        }))
-      ];
-
-      let hadContent = false;
-      let streamedContent = '';
-      for await (const chunk of sendMessageToAIStream(chatMessages, 'qwen/qwen3-coder:free')) {
-        hadContent = true;
-        streamedContent += chunk;
+        let hadContent = false;
+        let streamedContent = '';
+        for await (const chunk of sendMessageToAIStream(chatMessages, 'qwen/qwen3-coder:free')) {
+          hadContent = true;
+          streamedContent += chunk;
+          setConversations(prev => prev.map(conv =>
+            conv.id === currentConversationId
+              ? {
+                  ...conv,
+                  messages: conv.messages.map(m =>
+                    m.id === botMessageId ? { ...m, text: streamedContent } : m
+                  ),
+                  updatedAt: new Date()
+                }
+              : conv
+          ));
+        }
+        if (!hadContent) {
+          throw new Error('No response from AI');
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+        setError(`${errorMessage}\n\n[Debug] chatMessages sent to backend:\n${JSON.stringify(chatMessages, null, 2)}`);
         setConversations(prev => prev.map(conv =>
           conv.id === currentConversationId
             ? {
                 ...conv,
                 messages: conv.messages.map(m =>
-                  m.id === botMessageId ? { ...m, text: streamedContent } : m
+                  m.id === botMessageId ? { ...m, text: `Sorry, I encountered an error: ${errorMessage}` } : m
                 ),
                 updatedAt: new Date()
               }
             : conv
         ));
+      } finally {
+        setIsTyping(false);
       }
-      if (!hadContent) {
-        throw new Error('No response from AI');
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-      setError(`${errorMessage}\n\n[Debug] chatMessages sent to backend:\n${JSON.stringify(chatMessages, null, 2)}`);
-      setConversations(prev => prev.map(conv =>
-        conv.id === currentConversationId
-          ? {
-              ...conv,
-              messages: conv.messages.map(m =>
-                m.id === botMessageId ? { ...m, text: `Sorry, I encountered an error: ${errorMessage}` } : m
-              ),
-              updatedAt: new Date()
-            }
-          : conv
-      ));
-    } finally {
-      setIsTyping(false);
-    }
+    }, 0);
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
