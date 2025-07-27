@@ -5,27 +5,46 @@ export interface ChatMessage {
   content: string
 }
 
-export const sendMessageToAI = async (messages: ChatMessage[]): Promise<string> => {
-
-
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ messages })
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `API request failed with status ${response.status}. Please try again.`);
+// Streaming version: returns an async generator yielding text chunks
+export async function* sendMessageToAIStream(messages: ChatMessage[]): AsyncGenerator<string, void, unknown> {
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ messages })
+  });
+  if (!response.body) {
+    throw new Error('No response body');
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let done = false;
+  let buffer = '';
+  while (!done) {
+    const { value, done: doneReading } = await reader.read();
+    done = doneReading;
+    if (value) {
+      buffer += decoder.decode(value, { stream: true });
+      let lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') return;
+          try {
+            // Try to parse as JSON, else treat as text
+            const json = JSON.parse(data);
+            if (json.error) throw new Error(json.error);
+            // OpenRouter streams OpenAI-style chunks
+            const content = json.choices?.[0]?.delta?.content;
+            if (content) yield content;
+          } catch {
+            // Not JSON, just yield as text
+            yield data;
+          }
+        }
+      }
     }
-    return data.choices?.[0]?.message?.content || 'Sorry, I couldn\'t generate a response.';
-  } catch (error) {
-    console.error('Error calling serverless API:', error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Failed to get AI response. Please try again.');
   }
 }

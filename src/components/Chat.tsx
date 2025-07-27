@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { sendMessageToAI, ChatMessage } from '../services/aiService'
+import { sendMessageToAIStream, ChatMessage } from '../services/aiService'
 import './Chat.module.css'
 
 interface Message {
@@ -119,35 +119,54 @@ const Chat: React.FC = () => {
   }, [])
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !currentConversationId) return
+    if (!inputValue.trim() || !currentConversationId) return;
 
     const userMessage: Message = {
       id: Date.now(),
       text: inputValue,
       isBot: false,
       timestamp: new Date()
-    }
+    };
 
-    // Update conversation with user message
-    setConversations(prev => prev.map(conv => 
-      conv.id === currentConversationId 
-        ? { 
-            ...conv, 
+    // Add user message
+    setConversations(prev => prev.map(conv =>
+      conv.id === currentConversationId
+        ? {
+            ...conv,
             messages: [...conv.messages, userMessage],
             updatedAt: new Date()
           }
         : conv
-    ))
+    ));
 
     // Update title if this is the first user message
-    const currentConv = conversations.find(conv => conv.id === currentConversationId)
+    const currentConv = conversations.find(conv => conv.id === currentConversationId);
     if (currentConv && currentConv.messages.length === 1) {
-      updateConversationTitle(currentConversationId, inputValue)
+      updateConversationTitle(currentConversationId, inputValue);
     }
 
-    setInputValue('')
-    setIsTyping(true)
-    setError(null)
+    setInputValue('');
+    setIsTyping(true);
+    setError(null);
+
+    // Prepare streaming bot message
+    const botMessageId = Date.now() + 1;
+    let streamedText = '';
+    const botMessage: Message = {
+      id: botMessageId,
+      text: '',
+      isBot: true,
+      timestamp: new Date()
+    };
+    setConversations(prev => prev.map(conv =>
+      conv.id === currentConversationId
+        ? {
+            ...conv,
+            messages: [...conv.messages, userMessage, botMessage],
+            updatedAt: new Date()
+          }
+        : conv
+    ));
 
     try {
       // Convert messages to API format
@@ -158,50 +177,43 @@ const Chat: React.FC = () => {
           content: msg.text
         })),
         { role: 'user', content: inputValue }
-      ]
+      ];
 
-      const aiResponse = await sendMessageToAI(chatMessages)
-      
-      const botMessage: Message = {
-        id: Date.now() + 1,
-        text: aiResponse,
-        isBot: true,
-        timestamp: new Date()
+      let hadContent = false;
+      for await (const chunk of sendMessageToAIStream(chatMessages)) {
+        hadContent = true;
+        streamedText += chunk;
+        setConversations(prev => prev.map(conv =>
+          conv.id === currentConversationId
+            ? {
+                ...conv,
+                messages: conv.messages.map(m =>
+                  m.id === botMessageId ? { ...m, text: streamedText } : m
+                ),
+                updatedAt: new Date()
+              }
+            : conv
+        ));
       }
-
-      // Update conversation with bot message
-      setConversations(prev => prev.map(conv => 
-        conv.id === currentConversationId 
-          ? { 
-              ...conv, 
-              messages: [...conv.messages, userMessage, botMessage],
-              updatedAt: new Date()
-            }
-          : conv
-      ))
+      if (!hadContent) {
+        throw new Error('No response from AI');
+      }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
-      setError(errorMessage)
-      
-      const errorBotMessage: Message = {
-        id: Date.now() + 1,
-        text: `Sorry, I encountered an error: ${errorMessage}`,
-        isBot: true,
-        timestamp: new Date()
-      }
-
-      // Update conversation with error message
-      setConversations(prev => prev.map(conv => 
-        conv.id === currentConversationId 
-          ? { 
-              ...conv, 
-              messages: [...conv.messages, userMessage, errorBotMessage],
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
+      setConversations(prev => prev.map(conv =>
+        conv.id === currentConversationId
+          ? {
+              ...conv,
+              messages: conv.messages.map(m =>
+                m.id === botMessageId ? { ...m, text: `Sorry, I encountered an error: ${errorMessage}` } : m
+              ),
               updatedAt: new Date()
             }
           : conv
-      ))
+      ));
     } finally {
-      setIsTyping(false)
+      setIsTyping(false);
     }
   }
 
