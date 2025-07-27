@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { messages } = req.body;
+    const { messages, model } = req.body;
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Invalid messages format.' });
     }
@@ -25,6 +25,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders && res.flushHeaders();
 
+    const modelToUse = typeof model === 'string' && model.length > 0 ? model : 'qwen/qwen3-coder:free';
+
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -34,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'X-Title': 'DeathChat',
       },
       body: JSON.stringify({
-        model: 'deepseek/deepseek-r1-0528:free',
+        model: modelToUse,
         messages,
         temperature: 0.7,
         max_tokens: 1000,

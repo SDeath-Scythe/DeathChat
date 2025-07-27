@@ -181,7 +181,7 @@ const Chat: React.FC = () => {
 
       let hadContent = false;
       let streamedContent = '';
-      for await (const chunk of sendMessageToAIStream(chatMessages)) {
+      for await (const chunk of sendMessageToAIStream(chatMessages, 'qwen/qwen3-coder:free')) {
         hadContent = true;
         streamedContent += chunk;
         setConversations(prev => prev.map(conv =>

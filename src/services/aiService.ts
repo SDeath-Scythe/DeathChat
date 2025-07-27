@@ -6,13 +6,13 @@ export interface ChatMessage {
 }
 
 // Streaming version: returns an async generator yielding text chunks
-export async function* sendMessageToAIStream(messages: ChatMessage[]): AsyncGenerator<string, void, unknown> {
+export async function* sendMessageToAIStream(messages: ChatMessage[], model?: string): AsyncGenerator<string, void, unknown> {
   const response = await fetch(API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ messages })
+    body: JSON.stringify(model ? { messages, model } : { messages })
   });
   if (!response.body) {
     throw new Error('No response body');
