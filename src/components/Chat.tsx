@@ -181,7 +181,6 @@ const Chat: React.FC = () => {
 
       let hadContent = false;
       let streamedContent = '';
-      let streamedContent = '';
       for await (const chunk of sendMessageToAIStream(chatMessages)) {
         hadContent = true;
         streamedContent += chunk;
