@@ -158,50 +158,50 @@ const Chat: React.FC = () => {
           content: msg.text
         })),
         { role: 'user', content: inputValue }
-      ]
+      ];
 
-      const aiResponse = await sendMessageToAI(chatMessages)
-      
+      const aiResponse = await sendMessageToAI(chatMessages, 'qwen/qwen3-coder:free');
+
       const botMessage: Message = {
         id: Date.now() + 1,
         text: aiResponse,
         isBot: true,
         timestamp: new Date()
-      }
+      };
 
       // Update conversation with bot message
-      setConversations(prev => prev.map(conv => 
-        conv.id === currentConversationId 
-          ? { 
-              ...conv, 
+      setConversations(prev => prev.map(conv =>
+        conv.id === currentConversationId
+          ? {
+              ...conv,
               messages: [...conv.messages, userMessage, botMessage],
               updatedAt: new Date()
             }
           : conv
-      ))
+      ));
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
-      setError(errorMessage)
-      
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
+
       const errorBotMessage: Message = {
         id: Date.now() + 1,
         text: `Sorry, I encountered an error: ${errorMessage}`,
         isBot: true,
         timestamp: new Date()
-      }
+      };
 
       // Update conversation with error message
-      setConversations(prev => prev.map(conv => 
-        conv.id === currentConversationId 
-          ? { 
-              ...conv, 
+      setConversations(prev => prev.map(conv =>
+        conv.id === currentConversationId
+          ? {
+              ...conv,
               messages: [...conv.messages, userMessage, errorBotMessage],
               updatedAt: new Date()
             }
           : conv
-      ))
+      ));
     } finally {
-      setIsTyping(false)
+      setIsTyping(false);
     }
   }
 

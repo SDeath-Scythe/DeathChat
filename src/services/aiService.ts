@@ -1,49 +1,28 @@
-const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY
-const API_URL = 'https://openrouter.ai/api/v1/chat/completions'
-
 export interface ChatMessage {
-  role: 'user' | 'assistant' | 'system'
-  content: string
+  role: 'user' | 'assistant' | 'system';
+  content: string;
 }
 
-export const sendMessageToAI = async (messages: ChatMessage[]): Promise<string> => {
+export const sendMessageToAI = async (messages: ChatMessage[], model: string = 'qwen/qwen3-coder:free'): Promise<string> => {
   try {
-    const response = await fetch(API_URL, {
+    const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'DeathChat AI'
       },
-      body: JSON.stringify({
-        model: 'deepseek/deepseek-chat-v3-0324:free',
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 1000,
-      })
-    })
+      body: JSON.stringify({ messages, model })
+    });
 
+    const data = await response.json();
     if (!response.ok) {
-      if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please wait a moment before sending another message.')
-      }
-      if (response.status === 401) {
-        throw new Error('Invalid API key. Please check your OpenRouter API key.')
-      }
-      if (response.status === 402) {
-        throw new Error('Insufficient credits. Please check your OpenRouter account.')
-      }
-      throw new Error(`API request failed with status ${response.status}. Please try again.`)
+      throw new Error(data.error || 'API request failed.');
     }
-
-    const data = await response.json()
-    return data.choices[0]?.message?.content || 'Sorry, I couldn\'t generate a response.'
+    return data.result || 'Sorry, I couldn\'t generate a response.';
   } catch (error) {
-    console.error('Error calling OpenRouter API:', error)
+    console.error('Error calling backend /api/chat:', error);
     if (error instanceof Error) {
-      throw error
+      throw error;
     }
-    throw new Error('Failed to get AI response. Please try again.')
+    throw new Error('Failed to get AI response. Please try again.');
   }
 }
