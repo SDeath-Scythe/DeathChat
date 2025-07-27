@@ -32,15 +32,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': req.headers['origin'] || '',
-        'X-Title': 'DeathChat',
+        'HTTP-Referer': req.headers['origin'] || '', // Optional, for OpenRouter ranking
+        'X-Title': 'DeathChat', // Optional, for OpenRouter ranking
       },
       body: JSON.stringify({
         model: modelToUse,
         messages,
-        temperature: 0.7,
-        max_tokens: 1000,
-        stream: true,
       }),
     });
 
@@ -65,15 +62,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (data === '[DONE]') continue;
             try {
               const json = JSON.parse(data);
-              // Prefer content, fallback to reasoning (DeepSeek)
+              // Only stream 'content' as per OpenRouter docs
               const content = json.choices?.[0]?.delta?.content;
-              const reasoning = json.choices?.[0]?.delta?.reasoning;
               if (content) {
                 res.write(`data: ${content}\n\n`);
-                res.flush && res.flush();
-              }
-              if (reasoning) {
-                res.write(`data: ${reasoning}\n\n`);
                 res.flush && res.flush();
               }
             } catch {
