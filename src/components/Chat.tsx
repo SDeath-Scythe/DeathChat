@@ -24,6 +24,7 @@ const Chat: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [showThinking, setShowThinking] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Load conversations from localStorage on mount
@@ -151,7 +152,8 @@ const Chat: React.FC = () => {
 
     // Prepare streaming bot message
     const botMessageId = Date.now() + 1;
-    let streamedText = '';
+    let streamedReasoning = '';
+    let streamedContent = '';
     const botMessage: Message = {
       id: botMessageId,
       text: '',
@@ -182,13 +184,22 @@ const Chat: React.FC = () => {
       let hadContent = false;
       for await (const chunk of sendMessageToAIStream(chatMessages)) {
         hadContent = true;
-        streamedText += chunk;
+        // Parse chunk for reasoning/content markers
+        if (chunk.startsWith('reasoning:')) {
+          streamedReasoning += chunk.replace(/^reasoning:/, '');
+        } else if (chunk.startsWith('content:')) {
+          streamedContent += chunk.replace(/^content:/, '');
+        } else {
+          streamedContent += chunk;
+        }
+        // Compose display text with markers for rendering
+        const displayText = (streamedReasoning ? `[[THINKING]]${streamedReasoning}[[/THINKING]]` : '') + streamedContent;
         setConversations(prev => prev.map(conv =>
           conv.id === currentConversationId
             ? {
                 ...conv,
                 messages: conv.messages.map(m =>
-                  m.id === botMessageId ? { ...m, text: streamedText } : m
+                  m.id === botMessageId ? { ...m, text: displayText } : m
                 ),
                 updatedAt: new Date()
               }
@@ -243,135 +254,142 @@ const Chat: React.FC = () => {
   }
 
   const renderFormattedText = (text: string) => {
+    // Check for thinking marker
+    let thinking = '';
+    let reply = text;
+    const thinkingMatch = text.match(/\[\[THINKING\]\]([\s\S]*?)\[\[\/THINKING\]\]/);
+    if (thinkingMatch) {
+      thinking = thinkingMatch[1];
+      reply = text.replace(thinkingMatch[0], '');
+    }
+
     // Split text into parts: code blocks, inline code, and regular text
-    const parts = text.split(/```([\s\S]*?)```|`([^`]+)`/g)
-    
-    return parts.map((part, index) => {
-      // Code blocks (multiline)
-      if (index % 3 === 1 && part) {
-        const lines = part.trim().split('\n')
-        const language = lines[0].trim()
-        const code = lines.slice(language && !language.includes(' ') ? 1 : 0).join('\n')
-        
-        return (
-          <div key={index} className="my-4 bg-gray-800/50 border border-gray-600/50 rounded-lg overflow-hidden group">
-            <div className="bg-gray-700/70 px-4 py-2 flex items-center justify-between border-b border-gray-600/50">
-              <span className="text-xs text-gray-300 font-medium">
-                {language && !language.includes(' ') ? language : 'code'}
-              </span>
-              <button
-                onClick={() => copyToClipboard(code)}
-                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white transition-all duration-200 p-1 rounded hover:bg-gray-600/50"
-                title="Copy code"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </button>
-            </div>
-            <div className="relative">
-              <pre className="p-4 text-sm text-gray-200 overflow-x-auto leading-relaxed">
-                <code className="language-{language}">{code}</code>
-              </pre>
-            </div>
+    const parts = reply.split(/```([\s\S]*?)```|`([^`]+)`/g);
+
+    return (
+      <>
+        {/* Thinking (reasoning) part, if present and enabled */}
+        {thinking && showThinking && (
+          <div className="mb-2 p-2 rounded bg-yellow-900/60 border border-yellow-400/30 text-yellow-200 text-xs sm:text-sm font-mono animate-pulse">
+            <span className="font-semibold text-yellow-300 mr-2">Thinking:</span>
+            {thinking}
           </div>
-        )
-      }
-      
-      // Inline code
-      if (index % 3 === 2 && part) {
-        return (
-          <code key={index} className="bg-gray-700/70 text-orange-300 px-2 py-1 rounded text-sm font-mono border border-gray-600/30">
-            {part}
-          </code>
-        )
-      }
-      
-      // Regular text with enhanced formatting
-      if (part) {
-        const formattedText = part
-          .split('\n')
-          .map((line, lineIndex) => {
-            // Section headers with diamond bullet
-            if (line.trim().match(/^[♦◆▪️]\s+/)) {
-              return (
-                <div key={lineIndex} className="flex items-start my-3">
-                  <span className="text-blue-400 mr-3 mt-1 text-sm">♦</span>
-                  <div className="font-semibold text-blue-200">{line.trim().substring(2)}</div>
+        )}
+        {parts.map((part, index) => {
+          // Code blocks (multiline)
+          if (index % 3 === 1 && part) {
+            const lines = part.trim().split('\n');
+            const language = lines[0].trim();
+            const code = lines.slice(language && !language.includes(' ') ? 1 : 0).join('\n');
+            return (
+              <div key={index} className="my-4 bg-gray-800/50 border border-gray-600/50 rounded-lg overflow-hidden group">
+                <div className="bg-gray-700/70 px-4 py-2 flex items-center justify-between border-b border-gray-600/50">
+                  <span className="text-xs text-gray-300 font-medium">
+                    {language && !language.includes(' ') ? language : 'code'}
+                  </span>
+                  <button
+                    onClick={() => copyToClipboard(code)}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white transition-all duration-200 p-1 rounded hover:bg-gray-600/50"
+                    title="Copy code"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
                 </div>
-              )
-            }
-
-            // Bullet points with better styling
-            if (line.trim().startsWith('• ') || line.trim().startsWith('- ')) {
-              return (
-                <div key={lineIndex} className="flex items-start my-2 ml-4">
-                  <span className="text-blue-400 mr-3 mt-1.5 text-xs">●</span>
-                  <div className="text-gray-200 leading-relaxed">{line.trim().substring(2)}</div>
+                <div className="relative">
+                  <pre className="p-4 text-sm text-gray-200 overflow-x-auto leading-relaxed">
+                    <code className="language-{language}">{code}</code>
+                  </pre>
                 </div>
-              )
-            }
-            
-            // Numbered lists with enhanced styling
-            const numberedMatch = line.trim().match(/^(\d+)\.\s+(.*)/)
-            if (numberedMatch) {
-              return (
-                <div key={lineIndex} className="flex items-start my-2 ml-4">
-                  <span className="text-blue-400 mr-3 mt-0.5 font-semibold text-sm min-w-[20px]">{numberedMatch[1]}.</span>
-                  <div className="text-gray-200 leading-relaxed">{numberedMatch[2]}</div>
-                </div>
-              )
-            }
-            
-            // Main headers
-            if (line.trim().startsWith('# ')) {
-              return (
-                <h3 key={lineIndex} className="text-xl font-bold mt-6 mb-3 text-blue-300 border-b border-gray-600/50 pb-2">
-                  {line.trim().substring(2)}
-                </h3>
-              )
-            }
-            
-            // Sub headers
-            if (line.trim().startsWith('## ')) {
-              return (
-                <h4 key={lineIndex} className="text-lg font-semibold mt-4 mb-2 text-blue-300">
-                  {line.trim().substring(3)}
-                </h4>
-              )
-            }
-
-            // Sub-sub headers
-            if (line.trim().startsWith('### ')) {
-              return (
-                <h5 key={lineIndex} className="text-base font-medium mt-3 mb-2 text-blue-300">
-                  {line.trim().substring(4)}
-                </h5>
-              )
-            }
-            
-            // Bold and italic text with better regex
-            let processedLine = line
-              .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>')
-              .replace(/\*(.*?)\*/g, '<em class="italic text-gray-300">$1</em>')
-            
-            // Regular paragraphs
-            if (line.trim()) {
-              return (
-                <div key={lineIndex} className="my-1 text-gray-200 leading-relaxed" dangerouslySetInnerHTML={{ __html: processedLine }} />
-              )
-            }
-            
-            // Empty lines for spacing
-            return <div key={lineIndex} className="h-2" />
-          })
-        
-        return <div key={index} className="space-y-1">{formattedText}</div>
-      }
-      
-      return null
-    })
-  }
+              </div>
+            );
+          }
+          // Inline code
+          if (index % 3 === 2 && part) {
+            return (
+              <code key={index} className="bg-gray-700/70 text-orange-300 px-2 py-1 rounded text-sm font-mono border border-gray-600/30">
+                {part}
+              </code>
+            );
+          }
+          // Regular text with enhanced formatting
+          if (part) {
+            const formattedText = part
+              .split('\n')
+              .map((line, lineIndex) => {
+                // Section headers with diamond bullet
+                if (line.trim().match(/^[♦◆▪️]\s+/)) {
+                  return (
+                    <div key={lineIndex} className="flex items-start my-3">
+                      <span className="text-blue-400 mr-3 mt-1 text-sm">♦</span>
+                      <div className="font-semibold text-blue-200">{line.trim().substring(2)}</div>
+                    </div>
+                  );
+                }
+                // Bullet points with better styling
+                if (line.trim().startsWith('• ') || line.trim().startsWith('- ')) {
+                  return (
+                    <div key={lineIndex} className="flex items-start my-2 ml-4">
+                      <span className="text-blue-400 mr-3 mt-1.5 text-xs">●</span>
+                      <div className="text-gray-200 leading-relaxed">{line.trim().substring(2)}</div>
+                    </div>
+                  );
+                }
+                // Numbered lists with enhanced styling
+                const numberedMatch = line.trim().match(/^(\d+)\.\s+(.*)/);
+                if (numberedMatch) {
+                  return (
+                    <div key={lineIndex} className="flex items-start my-2 ml-4">
+                      <span className="text-blue-400 mr-3 mt-0.5 font-semibold text-sm min-w-[20px]">{numberedMatch[1]}.</span>
+                      <div className="text-gray-200 leading-relaxed">{numberedMatch[2]}</div>
+                    </div>
+                  );
+                }
+                // Main headers
+                if (line.trim().startsWith('# ')) {
+                  return (
+                    <h3 key={lineIndex} className="text-xl font-bold mt-6 mb-3 text-blue-300 border-b border-gray-600/50 pb-2">
+                      {line.trim().substring(2)}
+                    </h3>
+                  );
+                }
+                // Sub headers
+                if (line.trim().startsWith('## ')) {
+                  return (
+                    <h4 key={lineIndex} className="text-lg font-semibold mt-4 mb-2 text-blue-300">
+                      {line.trim().substring(3)}
+                    </h4>
+                  );
+                }
+                // Sub-sub headers
+                if (line.trim().startsWith('### ')) {
+                  return (
+                    <h5 key={lineIndex} className="text-base font-medium mt-3 mb-2 text-blue-300">
+                      {line.trim().substring(4)}
+                    </h5>
+                  );
+                }
+                // Bold and italic text with better regex
+                let processedLine = line
+                  .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>')
+                  .replace(/\*(.*?)\*/g, '<em class="italic text-gray-300">$1</em>');
+                // Regular paragraphs
+                if (line.trim()) {
+                  return (
+                    <div key={lineIndex} className="my-1 text-gray-200 leading-relaxed" dangerouslySetInnerHTML={{ __html: processedLine }} />
+                  );
+                }
+                // Empty lines for spacing
+                return <div key={lineIndex} className="h-2" />;
+              });
+            return <div key={index} className="space-y-1">{formattedText}</div>;
+          }
+          return null;
+        })}
+      </>
+    );
+  };
 
   return (
     <div className="flex w-full h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative">
@@ -464,6 +482,19 @@ const Chat: React.FC = () => {
       <div className="flex-1 flex justify-center items-center p-2 sm:p-4 md:p-6">
         {/* Chat Box - Responsive */}
         <div className="bg-gradient-to-br from-gray-800/90 via-gray-700/90 to-gray-800/90 border border-gray-600/30 rounded-xl sm:rounded-2xl shadow-2xl backdrop-blur-xl w-full max-w-5xl h-[calc(100vh-1rem)] sm:h-[calc(100vh-2rem)] md:h-[580px] flex flex-col overflow-hidden ring-1 ring-white/5">
+          {/* Show Thinking Toggle */}
+          <div className="absolute top-2 left-2 z-50 flex items-center space-x-2 bg-gray-900/80 px-3 py-1 rounded-xl border border-gray-700/40 shadow-md">
+            <label htmlFor="show-thinking-toggle" className="text-xs text-yellow-200 font-semibold cursor-pointer select-none flex items-center">
+              <input
+                id="show-thinking-toggle"
+                type="checkbox"
+                checked={showThinking}
+                onChange={() => setShowThinking(v => !v)}
+                className="form-checkbox h-4 w-4 text-yellow-400 focus:ring-yellow-500 border-gray-400 mr-2"
+              />
+              Show Thinking
+            </label>
+          </div>
           {/* Header - Responsive */}
           <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white p-3 sm:p-4 md:p-5 flex items-center justify-between relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 animate-pulse"></div>
